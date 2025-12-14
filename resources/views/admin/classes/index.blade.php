@@ -235,7 +235,7 @@
                 <!-- Paginacja -->
                 @if($classes->hasPages())
                 <div class="d-flex justify-content-center">
-                    {{ $classes->appends(request()->query())->links() }}
+                    {{ $classes->appends(request()->query())->links('vendor.pagination.custom') }}
                 </div>
                 @endif
             </div>
@@ -243,6 +243,73 @@
     </div>
 </div>
 
+<!-- Modal przypisywania przedmiotów -->
+<div class="modal fade" id="assignSubjectModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-book"></i> Przypisz przedmiot do klasy</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="assignSubjectForm" method="POST">
+                @csrf
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label"><i class="fas fa-door-open"></i> Wybierz klasę</label>
+                            <select class="form-select" id="modal_class_id" name="class_id" required>
+                                <option value="">-- Wybierz klasę --</option>
+                                @foreach($classes as $class)
+                                <option value="{{ $class->id }}">{{ $class->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><i class="fas fa-book"></i> Przedmiot</label>
+                            <select class="form-select" id="modal_subject_id" name="subject_id" required>
+                                <option value="">-- Wybierz przedmiot --</option>
+                                @php
+                                    $allSubjects = \App\Models\Subject::orderBy('name')->get();
+                                @endphp
+                                @foreach($allSubjects as $subject)
+                                <option value="{{ $subject->id }}">{{ $subject->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><i class="fas fa-user-tie"></i> Nauczyciel</label>
+                            <select class="form-select" id="modal_teacher_id" name="teacher_id" required>
+                                <option value="">-- Wybierz nauczyciela --</option>
+                                @php
+                                    $allTeachers = \App\Models\User::whereHas('role', fn($q) => $q->where('name', 'teacher'))->orderBy('name')->get();
+                                @endphp
+                                @foreach($allTeachers as $teacher)
+                                <option value="{{ $teacher->id }}">{{ $teacher->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Aktualne przypisania dla wybranej klasy -->
+                    <div id="currentAssignments" class="mt-3" style="display: none;">
+                        <h6 class="text-muted"><i class="fas fa-list"></i> Aktualne przedmioty w tej klasie:</h6>
+                        <div id="assignmentsList" class="border rounded p-3 bg-light">
+                            <div class="text-center text-muted">Wybierz klasę aby zobaczyć przypisane przedmioty</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Anuluj
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Przypisz przedmiot
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -287,8 +354,77 @@ function deleteClass(classId) {
 }
 
 function assignSubjectsModal() {
-    // This would open a modal for bulk subject assignment
-    alert('Funkcja przypisywania przedmiotów będzie dostępna wkrótce.');
+    const modal = new bootstrap.Modal(document.getElementById('assignSubjectModal'));
+    modal.show();
+}
+
+// Aktualizuj action formularza po wyborze klasy
+document.getElementById('modal_class_id').addEventListener('change', function() {
+    const classId = this.value;
+    const form = document.getElementById('assignSubjectForm');
+
+    if (classId) {
+        form.action = `/admin/classes/${classId}/assign-subject`;
+        loadClassSubjects(classId);
+    } else {
+        form.action = '';
+        document.getElementById('currentAssignments').style.display = 'none';
+    }
+});
+
+function loadClassSubjects(classId) {
+    const container = document.getElementById('currentAssignments');
+    const list = document.getElementById('assignmentsList');
+
+    container.style.display = 'block';
+    list.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Ładowanie...</div>';
+
+    fetch(`/api/classes/${classId}/subjects`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.length === 0) {
+                list.innerHTML = '<div class="text-center text-muted"><i class="fas fa-info-circle"></i> Brak przypisanych przedmiotów</div>';
+            } else {
+                let html = '<div class="row">';
+                data.forEach(item => {
+                    html += `
+                        <div class="col-md-6 mb-2">
+                            <div class="d-flex justify-content-between align-items-center p-2 bg-white rounded border">
+                                <div>
+                                    <strong>${item.subject_name}</strong><br>
+                                    <small class="text-muted">${item.teacher_name}</small>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        onclick="removeSubjectAssignment(${classId}, ${item.subject_id}, ${item.teacher_id})">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                list.innerHTML = html;
+            }
+        })
+        .catch(error => {
+            list.innerHTML = '<div class="text-center text-danger"><i class="fas fa-exclamation-triangle"></i> Błąd ładowania</div>';
+        });
+}
+
+function removeSubjectAssignment(classId, subjectId, teacherId) {
+    if (confirm('Czy na pewno chcesz usunąć to przypisanie?')) {
+        fetch(`/admin/classes/${classId}/subjects/${subjectId}/${teacherId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                loadClassSubjects(classId);
+            }
+        });
+    }
 }
 
 
@@ -349,6 +485,59 @@ function assignSubjectsModal() {
 
 .class-icon {
     font-size: 1.2rem;
+}
+
+/* Custom Pagination Styles */
+.pagination-custom {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.pagination-custom .page-item {
+    display: inline-block;
+}
+
+.pagination-custom .page-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+    font-size: 1rem;
+    line-height: 1;
+    color: #4e73df;
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.pagination-custom .page-link:hover {
+    background-color: #f8f9fa;
+    border-color: #4e73df;
+    color: #2e59d9;
+}
+
+.pagination-custom .page-item.active .page-link {
+    background-color: #4e73df;
+    border-color: #4e73df;
+    color: #fff;
+    font-weight: 600;
+}
+
+.pagination-custom .page-item.disabled .page-link {
+    color: #d1d5db;
+    pointer-events: none;
+    background-color: #fff;
+    border-color: #dee2e6;
 }
 </style>
 @endpush

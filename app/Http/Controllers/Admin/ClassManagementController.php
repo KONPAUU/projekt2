@@ -48,10 +48,15 @@ class ClassManagementController extends Controller
         });
 
         // Statystyki
+        $classesForStats = SchoolClass::withCount('students')->get();
+        $averageStudents = $classesForStats->count() > 0
+            ? $classesForStats->sum('students_count') / $classesForStats->count()
+            : 0;
+
         $stats = [
             'total_classes' => SchoolClass::count(),
             'total_students' => User::where('role_id', Role::student()->id)->count(),
-            'average_students' => SchoolClass::withCount('students')->avg('students_count'),
+            'average_students' => $averageStudents,
             'classes_with_tutors' => SchoolClass::whereNotNull('tutor_id')->count(),
         ];
 
@@ -165,7 +170,61 @@ class ClassManagementController extends Controller
 
         $assignedSubjects = $class->subjects()->with('teachers')->get();
 
-        return view('admin.classes.manage', compact('class', 'subjects', 'teachers', 'assignedSubjects'));
+        // Pobierz uczniów bez klasy lub z innej klasy (do dodania)
+        $availableStudents = User::where('role_id', Role::student()->id)
+                                  ->where(function($query) use ($class) {
+                                      $query->whereNull('class_id')
+                                            ->orWhere('class_id', '!=', $class->id);
+                                  })
+                                  ->orderBy('name')
+                                  ->get();
+
+        // Uczniowie w tej klasie
+        $classStudents = $class->students()->orderBy('name')->get();
+
+        return view('admin.classes.manage', compact('class', 'subjects', 'teachers', 'assignedSubjects', 'availableStudents', 'classStudents'));
+    }
+
+    /**
+     * Add student to class.
+     */
+    public function addStudent(Request $request, SchoolClass $class)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:users,id',
+        ]);
+
+        $student = User::findOrFail($request->student_id);
+
+        // Sprawdź czy to uczeń
+        if (!$student->isStudent()) {
+            return redirect()->back()
+                           ->with('error', 'Wybrany użytkownik nie jest uczniem.');
+        }
+
+        // Przypisz ucznia do klasy
+        $student->update(['class_id' => $class->id]);
+
+        return redirect()->back()
+                        ->with('success', "Uczeń {$student->name} został dodany do klasy {$class->name}.");
+    }
+
+    /**
+     * Remove student from class.
+     */
+    public function removeStudent(SchoolClass $class, User $student)
+    {
+        // Sprawdź czy uczeń jest w tej klasie
+        if ($student->class_id !== $class->id) {
+            return redirect()->back()
+                           ->with('error', 'Ten uczeń nie jest w tej klasie.');
+        }
+
+        // Usuń ucznia z klasy
+        $student->update(['class_id' => null]);
+
+        return redirect()->back()
+                        ->with('success', "Uczeń {$student->name} został usunięty z klasy.");
     }
 
     /**

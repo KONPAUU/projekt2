@@ -31,7 +31,7 @@ class UpdateGradeRequest extends FormRequest
         return [
             'grade' => 'required|numeric|min:1|max:6',
             'weight' => 'required|integer|min:1|max:10',
-            'type' => 'required|in:sprawdzian,kartkówka,odpowiedź,zadanie',
+            'type' => 'required|in:sprawdzian,kartkówka,odpowiedź,projekt,praca_domowa,aktywność',
             'description' => 'nullable|string|max:500',
             'reason' => 'nullable|string|max:500', // Powód zmiany oceny
         ];

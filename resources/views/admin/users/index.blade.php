@@ -223,8 +223,8 @@
 
                 <!-- Paginacja -->
                 @if($users->hasPages())
-                <div class="d-flex justify-content-center">
-                    {{ $users->appends(request()->query())->links() }}
+                <div class="d-flex justify-content-center mt-4">
+                    {{ $users->appends(request()->query())->links('vendor.pagination.custom') }}
                 </div>
                 @endif
             </div>
@@ -332,14 +332,21 @@ function deleteUser(userId) {
             headers: {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 location.reload();
             } else {
-                alert('Wystąpił błąd podczas usuwania użytkownika.');
+                alert(data.message || 'Wystąpił błąd podczas usuwania użytkownika.');
             }
         })
         .catch(error => {
@@ -361,18 +368,25 @@ function bulkDelete() {
             headers: {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
             },
             body: JSON.stringify({
                 action: 'delete',
                 user_ids: userIds
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 location.reload();
             } else {
-                alert('Wystąpił błąd podczas usuwania użytkowników.');
+                alert(data.message || 'Wystąpił błąd podczas usuwania użytkowników.');
             }
         })
         .catch(error => {
@@ -434,6 +448,59 @@ function exportUsers() {
 .btn-group-sm .btn {
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
+}
+
+/* Custom Pagination Styles */
+.pagination-custom {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.pagination-custom .page-item {
+    display: inline-block;
+}
+
+.pagination-custom .page-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+    font-size: 1rem;
+    line-height: 1;
+    color: #4e73df;
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.pagination-custom .page-link:hover {
+    background-color: #f8f9fa;
+    border-color: #4e73df;
+    color: #2e59d9;
+}
+
+.pagination-custom .page-item.active .page-link {
+    background-color: #4e73df;
+    border-color: #4e73df;
+    color: #fff;
+    font-weight: 600;
+}
+
+.pagination-custom .page-item.disabled .page-link {
+    color: #d1d5db;
+    pointer-events: none;
+    background-color: #fff;
+    border-color: #dee2e6;
 }
 </style>
 @endpush

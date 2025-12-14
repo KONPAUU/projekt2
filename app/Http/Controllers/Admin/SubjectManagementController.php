@@ -122,10 +122,20 @@ class SubjectManagementController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255|unique:subjects,name,' . $subject->id,
+            'code' => 'nullable|string|max:10|unique:subjects,code,' . $subject->id,
             'description' => 'nullable|string|max:1000',
+            'category' => 'nullable|string|max:255',
+            'hours_per_week' => 'nullable|integer|min:1|max:20',
         ]);
 
-        $subject->update($request->only(['name', 'description']));
+        $data = $request->only([
+            'name', 'description', 'code', 'category', 'hours_per_week'
+        ]);
+
+        $data['is_mandatory'] = $request->has('is_mandatory');
+        $data['has_final_exam'] = $request->has('has_final_exam');
+
+        $subject->update($data);
 
         return redirect()->route('admin.subjects.index')
                         ->with('success', 'Przedmiot został zaktualizowany.');

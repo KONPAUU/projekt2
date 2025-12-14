@@ -18,27 +18,26 @@ class AttendanceController extends Controller
     {
         $teacher = auth()->user();
 
-        // Pobierz klasy i przedmioty nauczyciela
-        $assignments = $teacher->teachingSubjects()
-                             ->with(['classes' => function($query) use ($teacher) {
-                                 $query->wherePivot('teacher_id', $teacher->id)
-                                       ->withCount('students');
-                             }])
-                             ->get();
+        // Pobierz unikalne klasy nauczyciela
+        $classIds = \DB::table('class_subject_teacher')
+            ->where('teacher_id', $teacher->id)
+            ->pluck('class_id')
+            ->unique();
+
+        // Policz uczniów w tych klasach
+        $totalStudents = User::whereIn('class_id', $classIds)
+            ->whereHas('role', fn($q) => $q->where('name', 'student'))
+            ->count();
 
         // Statystyki frekwencji
         $stats = [
-            'total_classes' => $assignments->sum(function($subject) {
-                return $subject->classes->count();
-            }),
-            'total_students' => $assignments->sum(function($subject) {
-                return $subject->classes->sum('students_count');
-            }),
+            'total_classes' => $classIds->count(),
+            'total_students' => $totalStudents,
             'todays_attendance' => $this->getTodaysAttendanceCount($teacher),
             'weekly_attendance' => $this->getWeeklyAttendanceCount($teacher),
         ];
 
-        return view('teacher.attendance.index', compact('assignments', 'stats'));
+        return view('teacher.attendance.index', compact('stats'));
     }
 
     /**
@@ -104,6 +103,7 @@ class AttendanceController extends Controller
                     'date' => $request->date,
                 ],
                 [
+                    'teacher_id' => $teacher->id,
                     'status' => $status,
                     'notes' => $request->notes[$studentId] ?? null,
                 ]
@@ -182,5 +182,64 @@ class AttendanceController extends Controller
             'late' => $attendances->where('status', 'late')->count(),
             'excused' => $attendances->where('status', 'excused')->count(),
         ];
+    }
+
+    /**
+     * Show attendance reports for teacher.
+     */
+    public function reports(Request $request)
+    {
+        $teacher = auth()->user();
+
+        // Pobierz klasy i przedmioty nauczyciela
+        $classes = SchoolClass::whereExists(function($query) use ($teacher) {
+            $query->select(\DB::raw(1))
+                  ->from('class_subject_teacher')
+                  ->whereColumn('class_subject_teacher.class_id', 'school_classes.id')
+                  ->where('class_subject_teacher.teacher_id', $teacher->id);
+        })->get();
+
+        // Pobierz unikalne przedmioty nauczyciela
+        $subjects = Subject::whereIn('id', function($query) use ($teacher) {
+            $query->select('subject_id')
+                  ->from('class_subject_teacher')
+                  ->where('teacher_id', $teacher->id);
+        })->get();
+
+        // Pobierz dane do raportu jeśli wybrano filtry
+        $reportData = null;
+        if ($request->filled('class_id') && $request->filled('subject_id')) {
+            $classId = $request->class_id;
+            $subjectId = $request->subject_id;
+            $dateFrom = $request->get('date_from', now()->subMonth()->toDateString());
+            $dateTo = $request->get('date_to', now()->toDateString());
+
+            $students = User::where('class_id', $classId)
+                           ->where('role_id', function($query) {
+                               $query->select('id')->from('roles')->where('name', 'student');
+                           })
+                           ->with(['attendances' => function($query) use ($subjectId, $dateFrom, $dateTo) {
+                               $query->where('subject_id', $subjectId)
+                                    ->whereBetween('date', [$dateFrom, $dateTo]);
+                           }])
+                           ->get();
+
+            $reportData = $students->map(function($student) {
+                $attendances = $student->attendances;
+                return [
+                    'student' => $student,
+                    'total' => $attendances->count(),
+                    'present' => $attendances->where('status', 'present')->count(),
+                    'absent' => $attendances->where('status', 'absent')->count(),
+                    'late' => $attendances->where('status', 'late')->count(),
+                    'excused' => $attendances->where('status', 'excused')->count(),
+                    'rate' => $attendances->count() > 0
+                        ? round(($attendances->whereIn('status', ['present', 'late'])->count() / $attendances->count()) * 100, 1)
+                        : 0,
+                ];
+            });
+        }
+
+        return view('teacher.attendance.reports', compact('classes', 'subjects', 'reportData', 'request'));
     }
 }

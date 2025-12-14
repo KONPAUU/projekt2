@@ -157,7 +157,12 @@ class SystemSettingsController extends Controller
             'classes' => [
                 'total' => SchoolClass::count(),
                 'with_students' => SchoolClass::has('students')->count(),
-                'average_students' => SchoolClass::withCount('students')->avg('students_count'),
+                'average_students' => (function () {
+                    $classesForStats = SchoolClass::withCount('students')->get();
+                    return $classesForStats->count() > 0
+                        ? $classesForStats->sum('students_count') / $classesForStats->count()
+                        : 0;
+                })(),
             ],
             'subjects' => [
                 'total' => Subject::count(),

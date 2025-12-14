@@ -83,11 +83,11 @@
         .hero {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
             color: white;
-            padding: 8rem 0 5rem;
+            padding: 5rem 0 5rem;
             position: relative;
             overflow: hidden;
             margin-top: -76px;
-            padding-top: 8rem;
+            padding-top: 10rem;
         }
 
         .hero::before {
@@ -111,6 +111,9 @@
             font-weight: 700;
             margin-bottom: 1.5rem;
             line-height: 1.2;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
         }
 
         .hero p {
@@ -210,12 +213,27 @@
         }
 
         /* Responsive */
+        @media (max-width: 992px) {
+            .hero h1 {
+                font-size: 2.8rem;
+            }
+        }
+
         @media (max-width: 768px) {
             .hero h1 {
-                font-size: 2.5rem;
+                font-size: 2.2rem;
             }
             .hero p {
                 font-size: 1.1rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .hero h1 {
+                font-size: 1.8rem;
+            }
+            .hero p {
+                font-size: 1rem;
             }
         }
     </style>

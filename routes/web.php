@@ -79,6 +79,8 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/classes/{class}/manage', [ClassManagementController::class, 'manage'])->name('classes.manage');
             Route::post('/classes/{class}/assign-subject', [ClassManagementController::class, 'assignSubject'])->name('classes.assign-subject');
             Route::delete('/classes/{class}/subjects/{subject}/{teacher}', [ClassManagementController::class, 'removeSubject'])->name('classes.remove-subject');
+            Route::post('/classes/{class}/add-student', [ClassManagementController::class, 'addStudent'])->name('classes.add-student');
+            Route::delete('/classes/{class}/students/{student}', [ClassManagementController::class, 'removeStudent'])->name('classes.remove-student');
 
             // Subjects
             Route::resource('subjects', SubjectManagementController::class);
@@ -86,8 +88,9 @@ Route::middleware(['auth'])->group(function () {
             // Reports
             Route::get('/reports', [SystemSettingsController::class, 'reports'])->name('reports');
 
-            // ✅ BRAKOWAŁO TEGO: trasa dla eksportu używana w widokach
+            // Export PDF routes
             Route::get('/export/pdf', [ExportController::class, 'pdf'])->name('export.pdf');
+            Route::post('/export/pdf', [ExportController::class, 'generatePdf'])->name('export.generate');
         });
 
     /*
@@ -119,10 +122,10 @@ Route::middleware(['auth'])->group(function () {
 
             // Attendance
             Route::get('/attendance', [TeacherAttendanceController::class, 'index'])->name('attendance.index');
-            Route::get('/attendance/class/{class}/subject/{subject}', [TeacherAttendanceController::class, 'showClass'])->name('attendance.class');
+            Route::get('/attendance/reports', [TeacherAttendanceController::class, 'reports'])->name('attendance.reports');
+            Route::get('/attendance/{class}/{subject}', [TeacherAttendanceController::class, 'showClass'])->name('attendance.show-class');
             Route::post('/attendance', [TeacherAttendanceController::class, 'store'])->name('attendance.store');
             Route::put('/attendance/{attendance}', [TeacherAttendanceController::class, 'update'])->name('attendance.update');
-            Route::get('/attendance/reports', [TeacherAttendanceController::class, 'reports'])->name('attendance.reports');
 
             // Subjects for teacher
             Route::get('/subjects', [TeacherGradeController::class, 'subjects'])->name('subjects.index');
@@ -146,7 +149,7 @@ Route::middleware(['auth'])->group(function () {
 
             // Grades
             Route::get('/grades', [GradesViewController::class, 'index'])->name('grades.index');
-            Route::get('/grades/by-subject', [GradesViewController::class, 'bySubject'])->name('grades.by-subject');
+            Route::get('/grades/by-subject/{subjectId}', [GradesViewController::class, 'bySubject'])->name('grades.by-subject');
             Route::get('/grades/average', [GradesViewController::class, 'average'])->name('grades.average');
             Route::get('/grades/history', [GradesViewController::class, 'history'])->name('grades.history');
             Route::get('/grades/statistics', [GradesViewController::class, 'statistics'])->name('grades.statistics');
@@ -207,6 +210,23 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth'])->prefix('api')->group(function () {
     Route::get('/classes/{class}/students', function (App\Models\SchoolClass $class) {
         return response()->json($class->students);
+    });
+
+    Route::get('/classes/{classId}/subjects', function ($classId) {
+        $assignments = \DB::table('class_subject_teacher')
+            ->where('class_subject_teacher.class_id', $classId)
+            ->join('subjects', 'class_subject_teacher.subject_id', '=', 'subjects.id')
+            ->join('users', 'class_subject_teacher.teacher_id', '=', 'users.id')
+            ->select(
+                'subjects.id as subject_id',
+                'subjects.name as subject_name',
+                'users.id as teacher_id',
+                'users.name as teacher_name'
+            )
+            ->orderBy('subjects.name')
+            ->get();
+
+        return response()->json($assignments);
     });
 
     Route::get('/teacher/subjects', function () {

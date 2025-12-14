@@ -121,10 +121,19 @@ DB_PASSWORD=
 ```
 
 ### 6. Uruchomienie migracji i seedów
+
+**WAŻNE:** Sama komenda `migrate` tworzy tylko puste tabele. Aby aplikacja działała poprawnie, musisz również uruchomić seeder, który dodaje testowych użytkowników i dane.
+
 ```bash
+# Opcja 1: Migracja + seed osobno
 php artisan migrate
 php artisan db:seed
+
+# Opcja 2: Wszystko w jednej komendzie (zalecane dla nowej instalacji)
+php artisan migrate:fresh --seed
 ```
+
+> **Uwaga:** `migrate:fresh` usuwa wszystkie tabele i tworzy je od nowa. Używaj tylko przy pierwszej instalacji lub gdy chcesz zresetować bazę danych.
 
 ### 7. Uruchomienie serwera
 ```bash
@@ -222,3 +231,5 @@ W przypadku problemów z instalacją lub używaniem systemu, skontaktuj się z a
 ---
 
 **Dziennik Lekcyjny v1.0** - Nowoczesne rozwiązanie dla szkół w Polsce
+
+testtest

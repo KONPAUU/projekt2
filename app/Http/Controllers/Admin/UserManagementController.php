@@ -156,9 +156,11 @@ class UserManagementController extends Controller
      */
     public function destroy(User $user, Request $request)
     {
+        $isAjax = $request->ajax() || $request->wantsJson() || $request->header('Accept') === 'application/json';
+
         // Nie pozwalaj usunąć siebie
         if ($user->id === auth()->id()) {
-            if ($request->ajax()) {
+            if ($isAjax) {
                 return response()->json(['success' => false, 'message' => 'Nie możesz usunąć swojego własnego konta.']);
             }
             return redirect()->route('admin.users.index')
@@ -167,7 +169,7 @@ class UserManagementController extends Controller
 
         $user->delete();
 
-        if ($request->ajax()) {
+        if ($isAjax) {
             return response()->json(['success' => true, 'message' => 'Użytkownik został usunięty.']);
         }
 
@@ -212,12 +214,14 @@ class UserManagementController extends Controller
             'role_id' => 'required_if:action,change_role|exists:roles,id',
         ]);
 
+        $isAjax = $request->ajax() || $request->wantsJson() || $request->header('Accept') === 'application/json';
+
         $userIds = $request->user_ids;
         $action = $request->action;
 
         // Nie pozwalaj na akcje na swoim koncie
         if (in_array(auth()->id(), $userIds)) {
-            if ($request->ajax()) {
+            if ($isAjax) {
                 return response()->json(['success' => false, 'message' => 'Nie możesz wykonać tej akcji na swoim koncie.']);
             }
             return redirect()->route('admin.users.index')
@@ -236,7 +240,7 @@ class UserManagementController extends Controller
                 break;
         }
 
-        if ($request->ajax()) {
+        if ($isAjax) {
             return response()->json(['success' => true, 'message' => $message]);
         }
 

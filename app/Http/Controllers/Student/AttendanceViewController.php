@@ -194,17 +194,34 @@ class AttendanceViewController extends Controller
     public function calendar(Request $request)
     {
         $student = auth()->user();
-        $month = $request->get('month', now()->month);
-        $year = $request->get('year', now()->year);
+        $month = (int) $request->get('month', now()->month);
+        $year = (int) $request->get('year', now()->year);
 
-        $attendances = $student->attendances()
+        // Walidacja miesiąca i roku
+        if ($month < 1 || $month > 12) {
+            $month = now()->month;
+        }
+        if ($year < 2020 || $year > 2030) {
+            $year = now()->year;
+        }
+
+        // Pobierz frekwencję i zgrupuj po dacie (jako string)
+        $attendanceRecords = $student->attendances()
                              ->with('subject')
                              ->whereMonth('date', $month)
                              ->whereYear('date', $year)
-                             ->get()
-                             ->groupBy(function($attendance) {
-                                 return $attendance->date->format('Y-m-d');
-                             });
+                             ->orderBy('date')
+                             ->get();
+
+        // Grupuj ręcznie po dacie w formacie Y-m-d
+        $attendances = collect();
+        foreach ($attendanceRecords as $attendance) {
+            $dateKey = $attendance->date->format('Y-m-d');
+            if (!$attendances->has($dateKey)) {
+                $attendances->put($dateKey, collect());
+            }
+            $attendances->get($dateKey)->push($attendance);
+        }
 
         // Dni w miesiącu
         $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
@@ -247,5 +264,63 @@ class AttendanceViewController extends Controller
             'monthly_stats' => $monthlyStats,
             'status_distribution' => $statusDistribution,
         ]);
+    }
+
+    /**
+     * Show class information for student.
+     */
+    public function classInfo()
+    {
+        $student = auth()->user();
+        $class = $student->schoolClass;
+
+        if (!$class) {
+            return redirect()->route('student.dashboard')
+                           ->with('error', 'Nie jesteś przypisany do żadnej klasy.');
+        }
+
+        $classmates = $class->students()->with('role')->get();
+        $tutor = $class->tutor;
+
+        // Przedmioty nauczane w klasie
+        $subjects = Subject::whereHas('classSubjectTeachers', function($query) use ($class) {
+            $query->where('class_id', $class->id);
+        })->with(['classSubjectTeachers' => function($query) use ($class) {
+            $query->where('class_id', $class->id)->with('teacher');
+        }])->get();
+
+        return view('student.class.info', compact('class', 'classmates', 'tutor', 'subjects'));
+    }
+
+    /**
+     * Show class ranking based on averages.
+     */
+    public function ranking()
+    {
+        $student = auth()->user();
+        $class = $student->schoolClass;
+
+        if (!$class) {
+            return redirect()->route('student.dashboard')
+                           ->with('error', 'Nie jesteś przypisany do żadnej klasy.');
+        }
+
+        $classmates = $class->students()->with(['grades', 'role'])->get();
+
+        $ranking = $classmates->map(function($classmate) {
+            return [
+                'student' => $classmate,
+                'average' => $classmate->getWeightedAverage(),
+                'grades_count' => $classmate->grades->count(),
+            ];
+        })->sortByDesc('average')->values();
+
+        $myRank = $ranking->search(function($item) use ($student) {
+            return $item['student']->id === $student->id;
+        });
+
+        $myRank = $myRank !== false ? $myRank + 1 : null;
+
+        return view('student.class.ranking', compact('ranking', 'class', 'myRank'));
     }
 }

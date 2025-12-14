@@ -92,4 +92,12 @@ class Subject extends Model
                     ->wherePivot('class_id', $classId)
                     ->exists();
     }
+
+    /**
+     * Relacja z tabelą pivot class_subject_teacher
+     */
+    public function classSubjectTeachers()
+    {
+        return $this->hasMany(\App\Models\ClassSubjectTeacher::class, 'subject_id');
+    }
 }

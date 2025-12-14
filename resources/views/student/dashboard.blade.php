@@ -2,11 +2,6 @@
 
 @section('title', 'Panel Ucznia')
 
-@section('breadcrumbs')
-<li class="breadcrumb-item"><a href="{{ route('home') }}">Strona główna</a></li>
-<li class="breadcrumb-item active">Panel Ucznia</li>
-@endsection
-
 @section('header')
 <h1 class="h2"><i class="fas fa-user-graduate"></i> Panel Ucznia</h1>
 <div class="btn-toolbar mb-2 mb-md-0">
@@ -88,7 +83,7 @@
 
                 @if($subjectAverages->count() > 0)
                 <div class="mt-4 text-center">
-                    <a href="{{ route('student.grades.by-subject') }}" class="btn btn-primary">
+                    <a href="{{ route('student.subjects.index') }}" class="btn btn-primary">
                         <i class="fas fa-eye"></i> Zobacz szczegóły przedmiotów
                     </a>
                 </div>

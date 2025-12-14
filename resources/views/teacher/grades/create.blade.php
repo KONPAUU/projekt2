@@ -208,41 +208,50 @@ document.addEventListener('DOMContentLoaded', function() {
 
         studentsContainer.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Ładowanie uczniów...</div>';
 
-        // Symulacja ładowania uczniów - w rzeczywistej aplikacji to byłby AJAX call
-        setTimeout(() => {
-            studentsContainer.innerHTML = `
-                <div class="row">
-                    <div class="col-12 mb-2">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="select-all" onchange="toggleAllStudents()">
-                            <label class="form-check-label fw-bold" for="select-all">
-                                Zaznacz wszystkich uczniów
-                            </label>
-                        </div>
-                        <hr>
-                    </div>
-                </div>
-                <div class="row" id="students-list">
-                    <!-- Students will be loaded here via AJAX -->
-                    <div class="col-md-6 mb-2">
-                        <div class="form-check">
-                            <input class="form-check-input student-checkbox" type="checkbox" name="students[]" value="1" id="student-1">
-                            <label class="form-check-label" for="student-1">
-                                Jan Kowalski
-                            </label>
+        // Pobierz uczniów z API
+        fetch(`/api/classes/${classId}/students`)
+            .then(response => response.json())
+            .then(students => {
+                if (students.length === 0) {
+                    studentsContainer.innerHTML = '<p class="text-muted text-center mb-0"><i class="fas fa-user-slash"></i> Brak uczniów w tej klasie</p>';
+                    return;
+                }
+
+                let studentsHtml = `
+                    <div class="row">
+                        <div class="col-12 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="select-all" onchange="toggleAllStudents()">
+                                <label class="form-check-label fw-bold" for="select-all">
+                                    Zaznacz wszystkich uczniów
+                                </label>
+                            </div>
+                            <hr>
                         </div>
                     </div>
-                    <div class="col-md-6 mb-2">
-                        <div class="form-check">
-                            <input class="form-check-input student-checkbox" type="checkbox" name="students[]" value="2" id="student-2">
-                            <label class="form-check-label" for="student-2">
-                                Anna Nowak
-                            </label>
+                    <div class="row" id="students-list">
+                `;
+
+                students.forEach(student => {
+                    studentsHtml += `
+                        <div class="col-md-6 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input student-checkbox" type="checkbox" name="students[]" value="${student.id}" id="student-${student.id}">
+                                <label class="form-check-label" for="student-${student.id}">
+                                    ${student.name}
+                                </label>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            `;
-        }, 500);
+                    `;
+                });
+
+                studentsHtml += '</div>';
+                studentsContainer.innerHTML = studentsHtml;
+            })
+            .catch(error => {
+                console.error('Error loading students:', error);
+                studentsContainer.innerHTML = '<p class="text-danger text-center mb-0"><i class="fas fa-exclamation-triangle"></i> Błąd ładowania uczniów</p>';
+            });
     }
 
     classSelect.addEventListener('change', loadStudents);

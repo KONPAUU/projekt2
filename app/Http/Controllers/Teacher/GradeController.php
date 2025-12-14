@@ -28,7 +28,12 @@ class GradeController extends Controller
                   ->where('class_subject_teacher.teacher_id', $teacher->id);
         })->withCount('students')->get();
 
-        $subjects = $teacher->teachingSubjects()->get();
+        // Pobierz unikalne przedmioty nauczyciela
+        $subjects = Subject::whereIn('id', function($query) use ($teacher) {
+            $query->select('subject_id')
+                  ->from('class_subject_teacher')
+                  ->where('teacher_id', $teacher->id);
+        })->get();
 
         // Pobierz oceny z filtrami
         $query = Grade::where('teacher_id', $teacher->id)
@@ -109,8 +114,12 @@ class GradeController extends Controller
                   ->where('class_subject_teacher.teacher_id', $teacher->id);
         })->withCount('students')->get();
 
-        // Pobierz przedmioty nauczyciela
-        $subjects = $teacher->teachingSubjects()->get();
+        // Pobierz unikalne przedmioty nauczyciela
+        $subjects = Subject::whereIn('id', function($query) use ($teacher) {
+            $query->select('subject_id')
+                  ->from('class_subject_teacher')
+                  ->where('teacher_id', $teacher->id);
+        })->get();
 
         return view('teacher.grades.create', compact('classes', 'subjects'));
     }
@@ -180,11 +189,8 @@ class GradeController extends Controller
         $validated = $request->validated();
         $grade->update($validated);
 
-        return redirect()->route('teacher.grades.show-class', [
-                    'class' => $grade->student->class_id,
-                    'subject' => $grade->subject_id
-                ])
-                ->with('success', 'Ocena została zaktualizowana.');
+        return redirect()->route('teacher.grades.index')
+                ->with('success', 'Ocena została zaktualizowana. Zmiana została zapisana w historii.');
     }
 
     /**
@@ -200,15 +206,9 @@ class GradeController extends Controller
                            ->with('error', 'Nie możesz usunąć tej oceny.');
         }
 
-        $classId = $grade->student->class_id;
-        $subjectId = $grade->subject_id;
-
         $grade->delete();
 
-        return redirect()->route('teacher.grades.show-class', [
-                    'class' => $classId,
-                    'subject' => $subjectId
-                ])
+        return redirect()->route('teacher.grades.index')
                 ->with('success', 'Ocena została usunięta.');
     }
 
@@ -271,7 +271,13 @@ class GradeController extends Controller
     public function quickGrade()
     {
         $teacher = auth()->user();
-        $subjects = $teacher->teachingSubjects()->get();
+
+        // Pobierz unikalne przedmioty nauczyciela
+        $subjects = Subject::whereIn('id', function($query) use ($teacher) {
+            $query->select('subject_id')
+                  ->from('class_subject_teacher')
+                  ->where('teacher_id', $teacher->id);
+        })->get();
 
         $classes = SchoolClass::whereExists(function($query) use ($teacher) {
             $query->select(\DB::raw(1))
@@ -313,5 +319,35 @@ class GradeController extends Controller
 
         return redirect()->route('teacher.grades.quick')
                 ->with('success', 'Ocena została dodana pomyślnie.');
+    }
+
+    /**
+     * List all subjects taught by the teacher.
+     */
+    public function subjects()
+    {
+        $teacher = auth()->user();
+
+        $subjects = $teacher->teachingSubjects()
+            ->withCount('grades')
+            ->with(['classSubjectTeachers' => function($query) use ($teacher) {
+                $query->where('teacher_id', $teacher->id)->with('class');
+            }])
+            ->get();
+
+        // Dla każdego przedmiotu dodaj statystyki
+        $subjectsWithStats = $subjects->map(function($subject) use ($teacher) {
+            $grades = Grade::where('teacher_id', $teacher->id)
+                          ->where('subject_id', $subject->id)
+                          ->get();
+
+            $subject->students_count = $grades->pluck('student_id')->unique()->count();
+            $subject->average_grade = $grades->avg('grade');
+            $subject->classes = $subject->classSubjectTeachers->pluck('class')->unique('id');
+
+            return $subject;
+        });
+
+        return view('teacher.subjects.index', compact('subjectsWithStats'));
     }
 }

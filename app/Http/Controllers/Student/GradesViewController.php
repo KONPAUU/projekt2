@@ -259,10 +259,41 @@ class GradesViewController extends Controller
                            ->groupBy('type')
                            ->get();
 
-        return response()->json([
-            'monthly_stats' => $monthlyStats,
-            'grade_distribution' => $gradeDistribution,
-            'type_stats' => $typeStats,
-        ]);
+        // Średnia ogólna
+        $overallAverage = $student->getWeightedAverage();
+
+        // Najlepszy i najgorszy wynik
+        $bestGrade = $student->grades()->max('grade');
+        $worstGrade = $student->grades()->min('grade');
+        $totalGrades = $student->grades()->count();
+
+        return view('student.grades.statistics', compact(
+            'monthlyStats',
+            'gradeDistribution',
+            'typeStats',
+            'overallAverage',
+            'bestGrade',
+            'worstGrade',
+            'totalGrades'
+        ));
+    }
+
+    /**
+     * List all subjects for student.
+     */
+    public function subjects()
+    {
+        $student = auth()->user();
+
+        $subjects = Subject::whereHas('grades', function($query) use ($student) {
+            $query->where('student_id', $student->id);
+        })->withCount(['grades' => function($query) use ($student) {
+            $query->where('student_id', $student->id);
+        }])->get()->map(function($subject) use ($student) {
+            $subject->average = $student->getSubjectAverage($subject->id);
+            return $subject;
+        });
+
+        return view('student.grades.subjects', compact('subjects'));
     }
 }
